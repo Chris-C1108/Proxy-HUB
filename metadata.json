@@ -1,0 +1,7 @@
+{
+  "name": "NodeMatrix - AI & Proxy Capability Inspector",
+  "description": "Automated node capability inspection, region detection diagnostic engine, and multi-protocol subscription distribution for Antigravity 2, Claude Code, ChatGPT, and streaming.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
