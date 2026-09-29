@@ -20,6 +20,8 @@ import {
   Terminal,
   ChevronDown,
   ChevronUp,
+  RefreshCw,
+  KeyRound,
 } from 'lucide-react';
 
 interface WorkbenchViewProps {
@@ -44,6 +46,61 @@ export function WorkbenchView({
   const [copiedConfig, setCopiedConfig] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [showCodePreview, setShowCodePreview] = useState(true);
+
+  
+  const [downloadToken, setDownloadToken] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sub_download_token") || "iVision";
+    }
+    return "iVision";
+  });
+
+  const [adminToken, setAdminToken] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("sub_admin_token") || "iVision";
+    }
+    return "iVision";
+  });
+
+  const [isHarvesting, setIsHarvesting] = useState(false);
+  const [harvestMsg, setHarvestMsg] = useState<string | null>(null);
+
+  const handleDownloadTokenChange = (val: string) => {
+    setDownloadToken(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sub_download_token", val);
+    }
+  };
+
+  const handleAdminTokenChange = (val: string) => {
+    setAdminToken(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sub_admin_token", val);
+    }
+  };
+
+  const handleManualHarvest = async () => {
+    setIsHarvesting(true);
+    setHarvestMsg("正在连接 Cloudflare Worker 深度采集最新订阅与 OpenRung 双通道中继...");
+    try {
+      const res = await fetch("/api/openrung/refresh?deep=1", {
+        method: "POST",
+        headers: { "x-sub-store-token": adminToken.trim() },
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setHarvestMsg("✅ 采集成功！已从 API 与镜像双通道聚合 " + (data.data?.nodes ?? 0) + " 个活跃节点写入 D1 历史库。");
+      } else {
+        const errMsg = data.error?.message || data.message || (res.status === 401 ? "管理员 Token 无效，请在下方配置 Admin Token" : ("HTTP " + res.status));
+        setHarvestMsg("❌ 采集失败: " + errMsg);
+      }
+    } catch (e: any) {
+      setHarvestMsg("❌ 网络请求异常: " + e.message);
+    } finally {
+      setIsHarvesting(false);
+      setTimeout(() => setHarvestMsg(null), 6000);
+    }
+  };
 
   const [tunOptions, setTunOptions] = useState<TunConfigOptions>({
     enableTun: true,
@@ -206,7 +263,7 @@ export function WorkbenchView({
         </div>
 
         <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
-          <span>运行域: 内部控制台 (实时过滤与 /api/sub 订阅编译)</span>
+          <button onClick={handleManualHarvest} disabled={isHarvesting} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-xs transition-colors disabled:opacity-50 cursor-pointer shadow-sm" title="触发 Cloudflare Worker 深度收割最新节点"><RefreshCw className={"h-3.5 w-3.5 " + (isHarvesting ? "animate-spin" : "")} /><span>{isHarvesting ? "采集收割中..." : "手动采集最新节点"}</span></button>
         </div>
       </div>
 
@@ -558,7 +615,47 @@ export function WorkbenchView({
             </div>
 
             {/* Direct Subscription Endpoint Box */}
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-2">
+            
+              {/* Token Configuration Inputs */}
+              <div className="rounded-md border border-slate-800 bg-slate-950/80 p-3 space-y-2.5">
+                <div className="flex items-center justify-between text-[11px] font-mono text-slate-300">
+                  <span className="flex items-center gap-1 font-semibold text-slate-200">
+                    <KeyRound className="h-3.5 w-3.5 text-cyan-400" />
+                    订阅与管理员凭据配置
+                  </span>
+                  <span className="text-[10px] text-slate-500">自动保存至本地</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+                    <span>客户端下载 Token (SUB_STORE_PUBLIC_DOWNLOAD_TOKEN)</span>
+                    <span className="text-emerald-400/80">免 401 鉴权</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={downloadToken}
+                    onChange={(e) => handleDownloadTokenChange(e.target.value)}
+                    placeholder="输入下载 Token (如 iVision)"
+                    className="w-full rounded border border-slate-800 bg-slate-900 px-2 py-1 text-xs font-mono text-emerald-400 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono text-slate-400 flex items-center justify-between">
+                    <span>管理后台 Token (SUB_STORE_ADMIN_TOKEN)</span>
+                    <span className="text-cyan-400/80">供手动采集与云端调度</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={adminToken}
+                    onChange={(e) => handleAdminTokenChange(e.target.value)}
+                    placeholder="输入管理 Token (如 iVision)"
+                    className="w-full rounded border border-slate-800 bg-slate-900 px-2 py-1 text-xs font-mono text-slate-300 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-950/20 p-3 space-y-2">
               <div className="flex items-center justify-between text-[11px] font-mono text-emerald-400">
                 <span className="flex items-center gap-1">
                   <Link className="h-3 w-3" />
