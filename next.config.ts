@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  
   outputFileTracingRoot: path.join(__dirname),
   eslint: {
     ignoreDuringBuilds: true,
@@ -20,7 +21,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: 'standalone',
   transpilePackages: ['motion'],
   webpack: (config, { dev }) => {
     if (dev && process.env.DISABLE_HMR === 'true') {

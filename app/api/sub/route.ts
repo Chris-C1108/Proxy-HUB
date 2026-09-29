@@ -1,3 +1,4 @@
+export const dynamic = 'force-static';
 import { NextRequest, NextResponse } from 'next/server';
 import { INITIAL_NODES } from '@/lib/mock-nodes';
 import { generateClashYaml, generateSingBoxJson, generateShadowsocksBase64 } from '@/lib/generators';
