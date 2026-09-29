@@ -21,6 +21,7 @@ import {
   GitBranch,
   Cloud,
   Layers,
+  RefreshCw,
 } from 'lucide-react';
 
 export function ExternalPipelineView() {
@@ -36,6 +37,46 @@ export function ExternalPipelineView() {
     'sync_yml' | 'python_prober' | 'substore_js' | 'substore_artifact' | 'cf_worker'
   >('sync_yml');
   const [copied, setCopied] = useState(false);
+
+  const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
+  const [isTriggering, setIsTriggering] = useState(false);
+  const [proberStats, setProberStats] = useState<any>(null);
+
+  const handleTriggerProber = async () => {
+    setIsTriggering(true);
+    setTriggerStatus("正在向 Cloudflare Worker 发起调度请求...");
+    try {
+      const res = await fetch(`${config.baseUrl}/api/prober/trigger`, {
+        method: "POST",
+        headers: {
+          "x-sub-store-token": config.token,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setTriggerStatus("✅ 探测指令已成功送达 GitHub Actions！云端 Ubuntu 节点测活环境中...");
+      } else {
+        setTriggerStatus(`❌ 调度失败: ${data.message || data.error || JSON.stringify(data)}`);
+      }
+    } catch (e: any) {
+      setTriggerStatus(`❌ 网络请求异常: ${e.message}`);
+    } finally {
+      setIsTriggering(false);
+    }
+  };
+
+  const handleFetchStatus = async () => {
+    try {
+      const res = await fetch(`${config.baseUrl}/api/prober/status`, {
+        headers: { "x-sub-store-token": config.token },
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setProberStats(data.data);
+      }
+    } catch (e) {}
+  };
+
 
   const artifacts = {
     sync_yml: {
@@ -90,6 +131,66 @@ export function ExternalPipelineView() {
 
   return (
     <div className="space-y-4">
+
+      {/* Cloud Remote Trigger Console */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+              <Cloud className="h-4 w-4 text-cyan-400" />
+              云端自动化探测调度 (GitHub Actions Ubuntu Runner)
+            </h4>
+            <p className="text-xs text-slate-400 mt-0.5">
+              点击通过 Cloudflare Worker API 远程唤起 GitHub Actions 执行多路并发 Zero-Token 连通性测试。
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleFetchStatus}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              查询节点状态
+            </button>
+            <button
+              onClick={handleTriggerProber}
+              disabled={isTriggering}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-cyan-500 text-slate-950 text-xs font-semibold hover:bg-cyan-400 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              <Terminal className="h-3.5 w-3.5" />
+              {isTriggering ? "唤起中..." : "一键唤起云端测活"}
+            </button>
+          </div>
+        </div>
+
+        {triggerStatus && (
+          <div className="rounded-lg bg-slate-950 border border-slate-800 px-3 py-2 text-xs font-mono text-cyan-300">
+            {triggerStatus}
+          </div>
+        )}
+
+        {proberStats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-xs font-mono">
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800/50">
+              <span className="text-slate-500 block text-[10px]">总收录节点</span>
+              <span className="text-slate-200 font-bold">{proberStats.stats?.total ?? 0}</span>
+            </div>
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800/50">
+              <span className="text-emerald-500 block text-[10px]">健康正常 (Active)</span>
+              <span className="text-emerald-400 font-bold">{proberStats.stats?.statusBreakdown?.active ?? 0}</span>
+            </div>
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800/50">
+              <span className="text-amber-500 block text-[10px]">预警抖动 (Degrading)</span>
+              <span className="text-amber-400 font-bold">{proberStats.stats?.statusBreakdown?.degrading ?? 0}</span>
+            </div>
+            <div className="bg-slate-950/60 p-2 rounded border border-slate-800/50">
+              <span className="text-rose-500 block text-[10px]">连续失效熔断 (Dead)</span>
+              <span className="text-rose-400 font-bold">{proberStats.stats?.statusBreakdown?.dead ?? 0}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Compact Pipeline Architecture Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/70 px-4 py-2.5 text-xs font-mono">
         <div className="flex flex-wrap items-center gap-2 text-slate-300">

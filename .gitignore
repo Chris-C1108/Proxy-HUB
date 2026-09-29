@@ -5,3 +5,7 @@ coverage/
 *.log
 .env*
 !.env.example
+output/
+test_run.yaml
+pnpm-workspace.yaml
+

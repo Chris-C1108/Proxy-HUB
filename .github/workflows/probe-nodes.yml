@@ -1,0 +1,60 @@
+name: NodeMatrix Capability Prober Pipeline
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'  # Runs every 4 hours automatically
+  workflow_dispatch:        # Can be triggered manually via GitHub Web or Cloudflare Worker API
+    inputs:
+      trigger_source:
+        description: 'Trigger Source (e.g. manual-web-ui, cron)'
+        required: false
+        default: 'manual'
+      probe_limit:
+        description: 'Max number of nodes to probe'
+        required: false
+        default: '50'
+
+permissions:
+  contents: write
+
+jobs:
+  zero-token-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install requests pyyaml urllib3
+
+      - name: Install Mihomo Kernel (Clash Meta)
+        run: |
+          echo "[SETUP] Downloading Mihomo Linux Kernel..."
+          wget -q -O mihomo.gz https://github.com/MetaCubeX/mihomo/releases/download/v1.18.7/mihomo-linux-amd64-v1.18.7.gz
+          gunzip mihomo.gz
+          chmod +x mihomo
+          sudo mv mihomo /usr/local/bin/mihomo
+          mihomo -v
+
+      - name: Execute Zero-Token Capability Prober
+        env:
+          SUB_STORE_URL: ${{ secrets.SUB_STORE_URL }}
+          SUB_STORE_ADMIN_TOKEN: ${{ secrets.SUB_STORE_ADMIN_TOKEN }}
+          PROBE_LIMIT: ${{ github.event.inputs.probe_limit || '50' }}
+        run: |
+          python scripts/probe_engine.py
+
+      - name: Upload Probing Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: classified-proxies-summary
+          path: output/
+          retention-days: 7
+
