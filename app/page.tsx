@@ -33,15 +33,37 @@ export default function Home() {
 
     for (let i = 0; i < total; i += chunkSize) {
       const end = Math.min(i + chunkSize, total);
-      for (let j = i; j < end; j++) {
-        const node = updated[j];
-        const jitter = Math.floor(Math.random() * 10) - 5;
-        node.latency = Math.max(20, node.latency + jitter);
-        node.testedAt = '刚刚实测';
-      }
+      await Promise.all(
+        updated.slice(i, end).map(async (node) => {
+          try {
+            const res = await fetch('/api/probe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                nodeName: node.name,
+                server: node.server,
+                port: node.port,
+                targetService: 'Antigravity',
+              }),
+            });
+            const data = await res.json();
+            node.latency = data.durationMs || node.latency;
+            node.testedAt = new Date().toLocaleTimeString();
+            if (data.verdict === 'PASS') {
+              node.capabilities.Antigravity = {
+                supported: true,
+                status: data.statusCode || 400,
+                reason: data.reason || 'PASS',
+                responseTimeMs: data.durationMs || 100,
+              };
+            }
+          } catch {
+            node.testedAt = '实测超时';
+          }
+        })
+      );
       setProbeProgress(Math.round((end / total) * 100));
       setNodes([...updated]);
-      await new Promise((r) => setTimeout(r, 50));
     }
 
     setProbingActive(false);
