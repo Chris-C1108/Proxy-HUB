@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          pip install requests pyyaml urllib3
+          pip install -r requirements.txt
 
       - name: Install Mihomo Kernel (Clash Meta)
         run: |
@@ -53,6 +53,7 @@ jobs:
 
       - name: Upload Probing Artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: classified-proxies-summary
           path: output/
